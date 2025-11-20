@@ -1,0 +1,32 @@
+## Bỏ qua các thư mục Build (Rác sinh ra khi chạy code)
+[Bb]in/
+[Oo]bj/
+
+## Bỏ qua các file cấu hình riêng của máy bạn (User-specific)
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Bỏ qua thư mục Cache của Visual Studio (Rất nặng)
+.vs/
+.vscode/
+
+## Bỏ qua các thư viện NuGet (Vì Visual Studio tự tải lại được)
+packages/
+*.nupkg
+
+## Bỏ qua các file log hệ thống
+*.log
+
+## (TÙY CHỌN) Bỏ qua file cấu hình chứa mật khẩu thật
+# Nếu trong appsettings.json của bạn có mật khẩu SQL thật, hãy bỏ comment dòng dưới
+# appsettings.json
+
+## Bỏ qua các file tạm của hệ điều hành
+Thumbs.db
+.DS_Store
+
+## Bỏ qua các file Database MDF LDF (Nếu dùng LocalDB)
+*.mdf
+*.ldf

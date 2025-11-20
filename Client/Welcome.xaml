@@ -1,0 +1,22 @@
+﻿<Window x:Class="Client.Welcome"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Chào mừng" Height="681" Width="1000"
+        WindowStartupLocation="CenterScreen">
+    <Grid Background="Black">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal" Height="96">
+
+            <Viewbox Width="48" Height="48" Stretch="Uniform" Margin="0,0,12,0">
+                <Canvas Width="100" Height="100">
+                    <Ellipse x:Name="OuterCircle" Canvas.Left="-21" Canvas.Top="-31" Width="121" Height="121" StrokeThickness="6" Stroke="#FF0AFF02" Fill="Transparent" HorizontalAlignment="Left" VerticalAlignment="Center" />
+
+                    <Path x:Name="CheckPath" Canvas.Left="3.951" Canvas.Top="0.783" Stroke="#FF0AFF02" StrokeThickness="8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Data="M10,30 L28,48 L66,12" Height="57" Stretch="Fill" Width="71" HorizontalAlignment="Left" VerticalAlignment="Center" />
+                </Canvas>
+            </Viewbox>
+
+            <TextBlock x:Name="WelcomeText" Text="Chào mừng!" FontSize="72" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="White" Height="117" />
+
+        </StackPanel>
+        <Label Content="Đăng nhập thành công." HorizontalAlignment="Left" Margin="331,381,0,0" VerticalAlignment="Top" Background="{x:Null}" Foreground="#FE0AFF02" RenderTransformOrigin="0.227,0.059" FontSize="36"/>
+    </Grid>
+</Window>
