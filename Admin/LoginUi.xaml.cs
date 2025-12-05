@@ -12,6 +12,8 @@ using NetworkLoginSystem.Protocol;
 using System.Text.Json;
 using NetworkLoginSystem.Core.DOTs;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
+using System.IO;
 
 namespace Admin;
 
@@ -21,9 +23,27 @@ namespace Admin;
 public partial class LoginUi : Window
 {
     private SocketClient _socketClient;
+
+    public IConfiguration Configuration { get; private set; }
     public LoginUi()
     {
         InitializeComponent();
+
+        // đọc file cấu hình
+        try
+        {
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("Admin.json", optional: false, reloadOnChange: true);
+
+            Configuration = builder.Build();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Lỗi đọc file setting.json: {ex.Message}");
+            return;
+        }
+
         _socketClient = new SocketClient();
     }
     private void CloseButton_Click(object sender, RoutedEventArgs e)
@@ -39,7 +59,10 @@ public partial class LoginUi : Window
         string username = UsernameTextBox.Text;
         string password = PasswordBox.Password;
 
-        bool isConnected = await _socketClient.ConnectAsync("192.168.155.110", 9000);
+        string ip = Configuration["ServerSettings:IpAddress"];
+        int port = Configuration.GetValue<int>("ServerSettings:Port");
+
+        bool isConnected = await _socketClient.ConnectAsync(ip, port);
         if (!isConnected)
         {
             //StatusTextBlock.Text = "Loi ket noi Server...";

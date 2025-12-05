@@ -15,6 +15,10 @@ using System.Windows.Shapes;
 using System.Xml.Linq;
 using NetworkLoginSystem.Protocol;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
+using System.IO;
+
+
 namespace Client
 {
     /// <summary>
@@ -22,9 +26,24 @@ namespace Client
     /// </summary>
     public partial class Register : Window
     {
+        public IConfiguration Configuration { get; private set; }
         public Register()
         {
             InitializeComponent();
+            // đọc file cấu hình
+            try
+            {
+                var builder = new ConfigurationBuilder()
+                    .SetBasePath(Directory.GetCurrentDirectory())
+                    .AddJsonFile("Client.json", optional: false, reloadOnChange: true);
+
+                Configuration = builder.Build();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi đọc file setting.json: {ex.Message}");
+                return;
+            }
         }
         private async void RegisterButton_Click(object sender, RoutedEventArgs e)
         {
@@ -39,10 +58,13 @@ namespace Client
                 Data = JsonSerializer.Serialize(regReq)
             };
 
+            string ip = Configuration["ServerSettings:IpAddress"];
+            int port = Configuration.GetValue<int>("ServerSettings:Port");
+
             // gui du lieu
             SocketClient client = new SocketClient();
 
-            if (await client.ConnectAsync("192.168.155.110", 9000))
+            if (await client.ConnectAsync(ip, port))
             {
                 string jsonToSend = JsonSerializer.Serialize(packet);
                 string response = await client.SendAndReceiveAsync(jsonToSend);

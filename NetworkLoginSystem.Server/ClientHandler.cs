@@ -25,12 +25,13 @@ namespace NetworkLoginSystem.Server
             _stream = client.GetStream();
         }
 
+        // hàm kiểm tra xem client yêu cầu gì dựa vào PacketType
         public async Task RunAsync()
         {
             try
             {
                 // Tạo bộ đệm để chứa dữ liệu
-                byte[] buffer = new byte[4096];
+                byte[] buffer = new byte[8192];
                 int byteRead;
 
                 // vong lap vo tan
@@ -64,6 +65,20 @@ namespace NetworkLoginSystem.Server
                             Console.WriteLine("-> Admin Re-connected (Background)");
                             await ProcessAdminReconnectAsync(packet.Data);
                             break;
+                        case PacketType.GetLoginHistory:
+                            Console.WriteLine("-> Admin yeu cau lay lich su DB");
+                            await SendHistoryListToAdmin();
+                            break;
+                        case PacketType.GetClientList:
+                            await SendClientListToAdmin();
+                            break;
+                        case PacketType.UpdateUserStatus:
+                            await ProcessUpdateUserStatus(packet.Data);
+                            break;
+                        case PacketType.DeleteUser:
+                            Console.WriteLine("-> Admin yeu cau XOA user");
+                            await ProcessDeleteUser(packet.Data);
+                            break;
                         default:
                             Console.WriteLine("-> Loai goi tin khong ho tro");
                             break;
@@ -71,7 +86,7 @@ namespace NetworkLoginSystem.Server
 
                     if (responseData != null)
                     {
-                        // 3. Chuyển kết quả thành JSON để gửi lại
+                        // Chuyển kết quả thành JSON để gửi lại
                         string jsonResponse = JsonSerializer.Serialize(responseData);
                         byte[] replyBytes = Encoding.UTF8.GetBytes(jsonResponse);
 
@@ -88,21 +103,23 @@ namespace NetworkLoginSystem.Server
             {
                 // Client thoát thì đóng kết nối
                 Console.WriteLine("finally");
-                //_client.Close();
             }
         }
 
-        // ham admin dang nhap lai
+        // Hàm Admin kết nối lại khi đã đăng nhâpj được vào trang admin
         private async Task ProcessAdminReconnectAsync(string json)
         {
             try
             {
+                // giai mã gói tin 
                 var request = JsonSerializer.Deserialize<LoginRequest>(json);
 
                 if (!ConnectionManager.ActiveAdmins.Contains(_client))
                 {
                     ConnectionManager.ActiveAdmins.Add(_client);
                 }
+
+                // nếu kết nói lại được sẽ gửi danh sách các client đang chờ duyệt đăng nhập
                 _ = Task.Run(() => SyncPendingRequestsToNewAdmin(_client));
 
                 Console.WriteLine($"+++ ADMIN {request.Username} DA KET NOI LAI (MainWindow) +++");
@@ -177,6 +194,16 @@ namespace NetworkLoginSystem.Server
                     {
                         return new LoginResponse { IsSuccess = false, Message = "Tai khoan khong ton tai!" };
                     }
+                    if (!user.IsActive)
+                    {
+                        Console.WriteLine($"-> Tu choi dang nhap: User {user.Username} da bi khoa.");
+                        return new LoginResponse
+                        {
+                            IsSuccess = false,
+                            Message = "Tai khoan cua ban da bi KHOA!",
+                            Role = "Locked" // Đánh dấu để Client biết
+                        };
+                    }
 
                     // Kiểm tra Mật khẩu (Hash pass gửi lên so với Hash trong DB)
                     bool isPassOk = PasswordHasher.VerifyPassword(request.Password, user.PasswordHash);
@@ -224,30 +251,30 @@ namespace NetworkLoginSystem.Server
                             // Báo tin cho admin
                             try
                             {
-                                
-                            var requestInfo = new
-                            {
-                                Id = loginReq.Id,              // ID để Admin biết duyệt cái nào
-                                Username = user.Username,      // Tên để hiện lên
-                                IpAddress = _client.Client.RemoteEndPoint?.ToString(),
-                                RequestTime = DateTime.Now.ToString("HH:mm:ss")
-                            };
-                            var packet = new DataPacket
-                            {
-                                Type = PacketType.NewLoginRequest,
-                                Data = JsonSerializer.Serialize(requestInfo)
-                            };
 
-                            byte[] dataToSend = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(packet));
-
-                            foreach (var adminSocket in ConnectionManager.ActiveAdmins.ToList())
-                            {
-                                if (adminSocket.Connected)
+                                var requestInfo = new
                                 {
-                                    await adminSocket.GetStream().WriteAsync(dataToSend, 0, dataToSend.Length);
+                                    Id = loginReq.Id,              // ID để Admin biết duyệt cái nào
+                                    Username = user.Username,      // Tên để hiện lên
+                                    IpAddress = _client.Client.RemoteEndPoint?.ToString(),
+                                    RequestTime = DateTime.Now.ToString("HH:mm:ss")
+                                };
+                                var packet = new DataPacket
+                                {
+                                    Type = PacketType.NewLoginRequest,
+                                    Data = JsonSerializer.Serialize(requestInfo)
+                                };
+
+                                byte[] dataToSend = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(packet));
+
+                                foreach (var adminSocket in ConnectionManager.ActiveAdmins.ToList())
+                                {
+                                    if (adminSocket.Connected)
+                                    {
+                                        await adminSocket.GetStream().WriteAsync(dataToSend, 0, dataToSend.Length);
+                                    }
                                 }
-                            }
-                            Console.WriteLine($"-> Da gui yeu cau cho Admin.");
+                                Console.WriteLine($"-> Da gui yeu cau cho Admin.");
                             }
                             catch (Exception ex)
                             {
@@ -310,16 +337,16 @@ namespace NetworkLoginSystem.Server
                         await db.SaveChangesAsync();
                         Console.WriteLine($"-> Da xoa yeu cau ID {decision.RequestId} khoi DB.");
                     }
-                // 3. Tìm Client đang chờ 
-                if (ConnectionManager.PendingClients.TryGetValue(decision.RequestId, out TcpClient clientSocket))
-                {
-
-                    if (clientSocket.Connected)
+                    // 3. Tìm Client đang chờ 
+                    if (ConnectionManager.PendingClients.TryGetValue(decision.RequestId, out TcpClient clientSocket))
                     {
 
-                        if (decision.IsApproved)
+                        if (clientSocket.Connected)
                         {
-                            var user = await db.Users.FirstOrDefaultAsync(u => u.Username == req.Username);
+
+                            if (decision.IsApproved)
+                            {
+                                var user = await db.Users.FirstOrDefaultAsync(u => u.Username == req.Username);
 
                                 if (user != null)
                                 {
@@ -336,24 +363,24 @@ namespace NetworkLoginSystem.Server
                                     Console.WriteLine($"-> Da luu lich su dang nhap cho {user.Username}");
                                 }
                             }
-                        var response = new LoginResponse
-                        {
-                            IsSuccess = decision.IsApproved,
-                            Message = decision.IsApproved ? "Admin da dong y!" : "Admin da tu choi!",
-                            Role = decision.IsApproved ? "Client" : "Rejected",
-                        };
+                            var response = new LoginResponse
+                            {
+                                IsSuccess = decision.IsApproved,
+                                Message = decision.IsApproved ? "Admin da dong y!" : "Admin da tu choi!",
+                                Role = decision.IsApproved ? "Client" : "Rejected",
+                            };
 
-                        string jsonRes = JsonSerializer.Serialize(response);
-                        byte[] data = Encoding.UTF8.GetBytes(jsonRes);
+                            string jsonRes = JsonSerializer.Serialize(response);
+                            byte[] data = Encoding.UTF8.GetBytes(jsonRes);
 
-                        // Gửi kết quả cuối cùng cho Client
-                        await clientSocket.GetStream().WriteAsync(data, 0, data.Length);
-                        Console.WriteLine($"-> Da gui ket qua cho Client (ID: {decision.RequestId})");
+                            // Gửi kết quả cuối cùng cho Client
+                            await clientSocket.GetStream().WriteAsync(data, 0, data.Length);
+                            Console.WriteLine($"-> Da gui ket qua cho Client (ID: {decision.RequestId})");
+                        }
+
+                        // 4. Xóa khỏi danh sách chờ
+                        ConnectionManager.PendingClients.Remove(decision.RequestId);
                     }
-
-                    // 4. Xóa khỏi danh sách chờ
-                    ConnectionManager.PendingClients.Remove(decision.RequestId);
-                }
                 }
 
             }
@@ -362,6 +389,7 @@ namespace NetworkLoginSystem.Server
                 Console.WriteLine($"Loi xu ly Admin Decision: {ex.Message}");
             }
         }
+
         // Hàm gửi toàn bộ danh sách chờ cho Admin vừa kết nối
         private async Task SyncPendingRequestsToNewAdmin(TcpClient adminClient)
         {
@@ -395,15 +423,159 @@ namespace NetworkLoginSystem.Server
 
                             byte[] data = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(packet));
 
-                            // Gửi riêng cho ông Admin này thôi
+                            // Gửi riêng cho Admin này thôi
                             await adminClient.GetStream().WriteAsync(data, 0, data.Length);
-
                             await Task.Delay(50);
                         }
                     }
                 }
             }
             catch (Exception ex) { Console.WriteLine("Loi sync admin: " + ex.Message); }
+        }
+
+        // ham lay lich su dang nhap 
+        private async Task SendHistoryListToAdmin()
+        {
+            Console.WriteLine("--- BAT DAU TRUY VAN HISTORY ---");
+            try
+            {
+                using (var db = new AppDbContext(Program.ConnectionString))
+                {
+                    // 1. Kiểm tra số lượng thô
+                    int rawCount = await db.LoginHistories.CountAsync();
+                    Console.WriteLine($"[DEBUG] Tong so dong trong bang LoginHistories: {rawCount}");
+
+                    if (rawCount == 0)
+                    {
+                        Console.WriteLine("[DEBUG] Bang rong -> Gui danh sach rong ve Admin.");
+                        // Vẫn gửi gói tin rỗng để Admin biết mà xóa loading
+                        var emptyPacket = new DataPacket { Type = PacketType.LoginHistoryData, Data = "[]" };
+                        byte[] emptyBytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(emptyPacket));
+                        await _stream.WriteAsync(emptyBytes, 0, emptyBytes.Length);
+                        return;
+                    }
+
+                    // 2. Truy vấn và Mapping
+                    var historyList = await db.LoginHistories
+                        .Include(h => h.User) // Join bảng User
+                        .OrderByDescending(h => h.LoginTime)
+                        .Take(50)
+                        .Select(h => new HistoryItemDto
+                        {
+                            // Dùng toán tử ? để tránh lỗi Null nếu User bị xóa
+                            Username = (h.User != null) ? h.User.Username : "Unknown User",
+                            Action = "Login",
+                            Time = h.LoginTime.ToString("dd/MM/yyyy HH:mm:ss"),
+                            Status = h.IsSuccess ? "Success" : "Failed",
+                            IpAddress = h.IpAddress ?? "N/A"
+                        })
+                        .ToListAsync();
+
+                    Console.WriteLine($"[DEBUG] Da lay duoc {historyList.Count} dong va map sang DTO.");
+
+                    string jsonData = JsonSerializer.Serialize(historyList);
+                    //Console.WriteLine($"[DEBUG] JSON gui di: {jsonData}");
+
+                    // 4. Đóng gói
+                    var packet = new DataPacket
+                    {
+                        Type = PacketType.LoginHistoryData,
+                        Data = jsonData
+                    };
+
+                    string finalJson = JsonSerializer.Serialize(packet);
+                    byte[] data = Encoding.UTF8.GetBytes(finalJson);
+
+                    await _stream.WriteAsync(data, 0, data.Length);
+                    //Console.WriteLine($"[SUCCESS] Da gui {data.Length} bytes ve Admin.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ LOI SERVER (SendHistory): {ex.Message}");
+                if (ex.InnerException != null) Console.WriteLine($"   Inner: {ex.InnerException.Message}");
+            }
+            Console.WriteLine("--------------------------------");
+        }
+
+        // ---GỬI DANH SÁCH CLIENT ---
+        private async Task SendClientListToAdmin()
+        {
+            try
+            {
+                using (var db = new AppDbContext(Program.ConnectionString))
+                {
+                    // Chỉ lấy những người có Role là "Client"
+                    var clients = await db.Users
+                        .Where(u => u.Role == "Client")
+                        .Select(u => new ClientItemDto
+                        {
+                            Id = u.Id,
+                            Username = u.Username,
+                            IsActive = u.IsActive
+                        })
+                        .ToListAsync();
+
+                    var packet = new DataPacket
+                    {
+                        Type = PacketType.ClientListData,
+                        Data = JsonSerializer.Serialize(clients)
+                    };
+
+                    byte[] data = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(packet));
+                    await _stream.WriteAsync(data, 0, data.Length);
+                }
+            }
+            catch (Exception ex) { Console.WriteLine("Loi lay danh sach Client: " + ex.Message); }
+        }
+
+        // ---CẬP NHẬT TRẠNG THÁI KHÓA/MỞ ---
+        private async Task ProcessUpdateUserStatus(string json)
+        {
+            try
+            {
+                var updateReq = JsonSerializer.Deserialize<UpdateStatusDto>(json);
+
+                using (var db = new AppDbContext(Program.ConnectionString))
+                {
+                    var user = await db.Users.FindAsync(updateReq.UserId);
+                    if (user != null)
+                    {
+                        user.IsActive = updateReq.NewStatus;
+                        await db.SaveChangesAsync();
+                        Console.WriteLine($"-> Da cap nhat User {user.Username} thanh {(user.IsActive ? "Active" : "Locked")}");
+
+                        // (Tùy chọn) Có thể gửi tin nhắn báo lại cho Admin là "Thành công" nếu muốn
+                    }
+                }
+            }
+            catch (Exception ex) { Console.WriteLine("Loi Update Status: " + ex.Message); }
+        }
+
+        // XÓA TÀI KHOẢN
+        private async Task ProcessDeleteUser(string json)
+        {
+            try
+            {
+                var deleteDto = JsonSerializer.Deserialize<DeleteUserDto>(json);
+
+                using (var db = new AppDbContext(Program.ConnectionString))
+                {
+                    var user = await db.Users.FindAsync(deleteDto.UserId);
+                    if (user != null)
+                    {
+                        // EF Core thường sẽ tự xóa các bảng con liên quan (History) nếu cấu hình đúng
+                        db.Users.Remove(user);
+                        await db.SaveChangesAsync();
+                        Console.WriteLine($"-> DA XOA VINH VIEN USER: {user.Username}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Loi Xoa User: " + ex.Message);
+                // Nếu lỗi do khóa ngoại (Foreign Key), bạn cần xóa LoginHistories của user này trước
+            }
         }
     }
 }

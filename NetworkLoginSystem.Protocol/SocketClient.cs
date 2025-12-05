@@ -45,7 +45,7 @@ namespace NetworkLoginSystem.Protocol
                 await _stream.WriteAsync(dataToSend, 0, dataToSend.Length);
 
                 //nhan
-                byte[] buffer = new byte[1024];
+                byte[] buffer = new byte[65536];
                 int bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length);
 
                 string response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
@@ -62,15 +62,39 @@ namespace NetworkLoginSystem.Protocol
         {
             try
             {
-            byte[] buffer = new byte[1024];
-            int bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length);
+                if (_client == null || !_client.Connected) return null;
 
-            string result = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-            return result;
+                // 1. Tăng bộ đệm lên 64KB (đủ chứa 65536 ký tự một lần hốt)
+                // 9943 bytes sẽ nằm gọn trong này, không bị cắt.
+                byte[] buffer = new byte[65536];
 
+                // 2. Sử dụng StringBuilder để nối chuỗi (Phòng trường hợp dữ liệu lớn hơn 64KB)
+                StringBuilder messageBuilder = new StringBuilder();
+                int bytesRead = 0;
+
+                do
+                {
+                    // Đọc dữ liệu từ dòng chảy (Stream)
+                    bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length);
+
+                    if (bytesRead == 0) return null; // Mất kết nối
+
+                    // Nối phần vừa đọc được vào cục tổng
+                    messageBuilder.Append(Encoding.UTF8.GetString(buffer, 0, bytesRead));
+
+                    // Mẹo nhỏ: Nghỉ 1 tích tắc để đảm bảo toàn bộ gói tin đã về đến nơi
+                    // (Giúp thuộc tính DataAvailable chính xác hơn)
+                    await Task.Delay(10);
+
+                }
+                // 3. Vòng lặp: Nếu trên đường truyền vẫn còn tín hiệu -> Đọc tiếp
+                while (_stream.DataAvailable);
+
+                return messageBuilder.ToString();
             }
-            catch 
+            catch (Exception ex)
             {
+                Console.WriteLine("Loi nhan tin: " + ex.Message);
                 return null;
             }
         }

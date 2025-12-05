@@ -11,6 +11,9 @@ using System.Windows.Shapes;
 using NetworkLoginSystem.Protocol;
 using System.Text.Json;
 using NetworkLoginSystem.Core.DOTs;
+using Microsoft.Extensions.Configuration;
+using System.IO;
+
 
 
 namespace Client;
@@ -23,17 +26,37 @@ public partial class MainWindow : Window
     private SocketClient _socketClient;
     public bool isConnected;
 
+    public IConfiguration Configuration { get; private set; }
+
     public MainWindow()
     {
         InitializeComponent();
+        // đọc file cấu hình
+        try
+        {
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("Client.json", optional: false, reloadOnChange: true);
+
+            Configuration = builder.Build();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Lỗi đọc file setting.json: {ex.Message}");
+            return;
+        }
+
         _socketClient = new SocketClient();
         _ = ConnectToServerAsync();
     }
 
     private async Task ConnectToServerAsync()
     {
+        string ip = Configuration["ServerSettings:IpAddress"];
+        int port = Configuration.GetValue<int>("ServerSettings:Port");
+
         // giu ket noi lien tuc
-        isConnected = await _socketClient.ConnectAsync("192.168.155.110", 9000);
+        isConnected = await _socketClient.ConnectAsync(ip, port);
         if (!isConnected)
         {
             StatusText.Text = "Disconnected";

@@ -16,9 +16,12 @@ namespace NetworkLoginSystem.Server
 
         public TcpServer (string ipAddress, int port)
         {
+            // truyền cào cổng và ip
             _port = port;
             IPAddress ip = IPAddress.Parse(ipAddress);
-            _listener = new TcpListener(ip, port);
+
+            // IPAddress.Any : chấp nhận mọi ip
+            _listener = new TcpListener(IPAddress.Any, port);
         }
 
         public async Task StartAsync()
@@ -33,6 +36,7 @@ namespace NetworkLoginSystem.Server
 
                 ClientHandler clientHandler = new ClientHandler(client);
 
+                // tạo 1 luồng mới để xử lí riêng client đó tránh ngẽn hệ thống
                 _ = Task.Run(() =>
                 clientHandler.RunAsync() );
             }

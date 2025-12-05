@@ -287,6 +287,12 @@
                                     Height="54"
                                     FontSize="16"
                                     FontWeight="Bold">
+                                <Button.Background>
+                                    <LinearGradientBrush EndPoint="1,0" MappingMode="RelativeToBoundingBox" SpreadMethod="Pad">
+                                        <GradientStop Color="#FF667EEA" Offset="0"/>
+                                        <GradientStop Color="#FF764BA2" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Button.Background>
                                 <Button.Effect>
                                     <DropShadowEffect Color="Black" Opacity="0.3" BlurRadius="15" ShadowDepth="5"/>
                                 </Button.Effect>

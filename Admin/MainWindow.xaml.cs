@@ -15,6 +15,9 @@ using System.Windows.Shapes;
 using System.Text.Json;
 using NetworkLoginSystem.Core.DOTs;
 using System.Collections.ObjectModel;
+using System.Configuration;
+using Microsoft.Extensions.Configuration;
+using System.IO;
 
 namespace Admin
 {
@@ -37,49 +40,83 @@ namespace Admin
         private SocketClient _socketClient;
         public bool isConnected;
 
-        public ObservableCollection<LoginRequestItem> PendingRequests { get; set; }
+        private LoginRequestsControl _requestsView;
+        private History _historyView;
+        private ClientManagementControl _clientView;
+        private List<Button> menuButtons;
+    
+        public IConfiguration Configuration { get; private set; }
 
         public MainWindow()
         {
             InitializeComponent();
-            _socketClient = new SocketClient();
-            _ = ConnectToServerAsync();
-            _= ListenForServerMessages();
+            // đọc file cấu hình
+            try
+            {
+                var builder = new ConfigurationBuilder()
+                    .SetBasePath(Directory.GetCurrentDirectory())
+                    .AddJsonFile("Admin.json", optional: false, reloadOnChange: true);
 
-            PendingRequests = new ObservableCollection<LoginRequestItem>();
-            LoginRequestsItemsControl.ItemsSource = PendingRequests;
+                Configuration = builder.Build();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi đọc file setting.json: {ex.Message}");
+                return;
+            }
+            _socketClient = new SocketClient();
+
+            _requestsView = new LoginRequestsControl();
+            _historyView = new History();
+            _requestsView.SetSocket(_socketClient);
+            MainContentArea.Content = _requestsView;
+            _clientView = new ClientManagementControl();
+            _clientView.SetSocket(_socketClient);
+
+            _ = ConnectToServerAsync();
+
+            menuButtons = new()
+            {
+                btnRequests,
+                btnHistory,
+                btnClients
+            };
+
+            Loaded += MainWindow_Loaded;
         }
         private async Task ConnectToServerAsync()
         {
+            string ip = Configuration["ServerSettings:IpAddress"];
+            int port = Configuration.GetValue<int>("ServerSettings:Port");
+
             // giu ket noi lien tuc
             AdminStatusText.Text = "Connecting...";
-            isConnected = await _socketClient.ConnectAsync("192.168.155.110", 9000);
+            isConnected = await _socketClient.ConnectAsync(ip, port);
 
             if (isConnected)
             {
                 AdminStatusText.Text = "Connected";
-                 AdminStatusIndicator.Fill = new SolidColorBrush(Colors.Green);
+                AdminStatusIndicator.Fill = new SolidColorBrush(Colors.Green);
 
-            // can gui lai socket admin 
-            var loginData = new LoginRequest { 
-                Username = "admin", 
-                Password = "admin123" 
-            };
-            var packet = new DataPacket
-            {
-                Type = PacketType.AdminReconnection,
-                Data = JsonSerializer.Serialize(loginData)
-            };
-            string jsonLogin = JsonSerializer.Serialize(packet);
-            await _socketClient.SendAsync(jsonLogin);// gui di k can nhan lai
-
-            _ = Task.Run(() => ListenForServerMessages());
+                // can gui lai socket admin 
+                var loginData = new LoginRequest
+                {
+                    Username = "admin",
+                    Password = "admin123"
+                };
+                var packet = new DataPacket
+                {
+                    Type = PacketType.AdminReconnection,
+                    Data = JsonSerializer.Serialize(loginData)
+                };
+                string jsonLogin = JsonSerializer.Serialize(packet);
+                await _socketClient.SendAsync(jsonLogin);// gui di k can nhan lai
+                _ = Task.Run(() => ListenForServerMessages());
             }
             else
             {
                 AdminStatusText.Text = "Disconnected";
                 AdminStatusIndicator.Fill = new SolidColorBrush(Colors.Red);
-
             }
         }
         private async Task ListenForServerMessages()
@@ -93,115 +130,123 @@ namespace Admin
                     if (string.IsNullOrEmpty(message)) break; // Mất kết nối
 
                     // Giải mã gói tin
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                     var packet = JsonSerializer.Deserialize<DataPacket>(message);
+                    //MessageBox.Show($"Loại gói tin: {packet.Type}");
 
                     if (packet.Type == PacketType.NewLoginRequest)
                     {
                         var newItem = JsonSerializer.Deserialize<LoginRequestItem>(packet.Data);
 
-                        // Thêm vào giao diện
-                        AddNewRequest(newItem);
+                        // Gọi vào màn hình con để thêm dữ liệu
+                        // Dùng Dispatcher để vẽ lên giao diện
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            _requestsView.AddNewRequest(newItem);
+                        });
+                    }
+                    else if (packet.Type == PacketType.LoginHistoryData)
+                    {
+                        // Giải mã danh sách
+                        var listHistory = JsonSerializer.Deserialize<List<HistoryItemDto>>(packet.Data, options);
 
-                        AddToLog($"Yêu cầu mới từ: {newItem.Username} ({newItem.IpAddress})", 2);
+                        // Cập nhật UI (Dùng Dispatcher)
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            if (_historyView != null)
+                            {
+                                _historyView.UpdateHistory(listHistory);
+                            }
+                        });
+                    }
+                    else if (packet.Type == PacketType.ClientListData)
+                    {
+                        var list = JsonSerializer.Deserialize<List<ClientItemDto>>(packet.Data, options);
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            _clientView.UpdateClientList(list);
+                        });
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    MessageBox.Show("Lỗi Lắng nghe: " + ex.Message);
                     // Bỏ qua lỗi nhỏ hoặc ngắt kết nối nếu lỗi nặng
                     break;
                 }
             }
         }
-
-        // --- XỬ LÝ NÚT CHẤP NHẬN ---
-        private async void ApproveButton_Click(object sender, RoutedEventArgs e)
+        private void MenuRequests_Click(object sender, RoutedEventArgs e)
         {
-            var button = sender as Button;
-            var requestItem = button.Tag as LoginRequestItem; // Lấy dữ liệu từ Tag
-
-            if (requestItem != null)
-            {
-                // 1. Gửi tin hiệu ACCEPT lên Server
-                await SendDecisionToServer(requestItem.Id, 1); // 1 = Approved
-
-                // 2. Xóa khỏi danh sách hiển thị ngay lập tức (cho mượt)
-                PendingRequests.Remove(requestItem);
-
-                AddToLog($"Đã CHẤP NHẬN user: {requestItem.Username}",2);
-                AddToLog($"{requestItem.Username}",1);
-            }
+            MainContentArea.Content = _requestsView;
+            SetActiveMenuButton(sender as Button);
         }
-        // --- XỬ LÝ NÚT TỪ CHỐI ---
-        private async void RejectButton_Click(object sender, RoutedEventArgs e)
+        private async void MenuHistory_Click(object sender, RoutedEventArgs e)
         {
-            var button = sender as Button;
-            var requestItem = button.Tag as LoginRequestItem;
+            MainContentArea.Content = _historyView;
+            SetActiveMenuButton(sender as Button);
 
-            if (requestItem != null)
+            // Gửi lệnh xin dữ liệu lên Server
+            var packet = new DataPacket
             {
-                // 1. Gửi tin hiệu REJECT lên Server
-                await SendDecisionToServer(requestItem.Id, 2); // 2 = Rejected
+                Type = PacketType.GetLoginHistory,
+                Data = ""
+            };
+            string json = JsonSerializer.Serialize(packet);
 
-                // 2. Xóa khỏi danh sách
-                PendingRequests.Remove(requestItem);
-
-                AddToLog($"Đã TỪ CHỐI user: {requestItem.Username}", 2);
-            }
-
+            if (_socketClient != null)
+                await _socketClient.SendAsync(json);
         }
-        // --- HÀM GỬI QUYẾT ĐỊNH CHUNG ---
-        private async Task SendDecisionToServer(int requestId, int status)
+        private void MenuClients_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                // Tạo gói tin quyết định (Cấu trúc này phải khớp với Server mong đợi)
-                var decisionData = new AdminDecisionPacket
-                {
-                    RequestId = requestId,
-                    IsApproved = (status == 1)
-                };
-
-                // Đóng gói
-                var packet = new DataPacket
-                {
-                    Type = PacketType.AcceptLogin, // Hoặc dùng chung 1 Type là AdminDecision
-                    Data = JsonSerializer.Serialize(decisionData)
-                };
-
-                // Gửi đi
-                string jsonToSend = JsonSerializer.Serialize(packet);
-                await _socketClient.SendAsync(jsonToSend);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Lỗi gửi quyết định: {ex.Message}");
-            }
-        }
-        public void AddNewRequest(LoginRequestItem newItem)
-        {
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                PendingRequests.Add(newItem);
-            });
+            MainContentArea.Content = _clientView;
+            _clientView.RefreshData(); // Lấy dữ liệu mới nhất
+            SetActiveMenuButton(sender as Button);
         }
 
-        private void AddToLog(string message, int status)
+        public void AddToLog(string message, int status)
         {
             // Vì đụng vào giao diện từ luồng khác nên phải dùng Dispatcher
             Application.Current.Dispatcher.Invoke(() =>
             {
                 string time = DateTime.Now.ToString("HH:mm:ss");
                 string logEntry = $"[{time}] {message}";
-                
-                if(status == 2)
+
+                if (status == 2)
                 {
-                ActivityLogTextBlock.Text += logEntry + "\n------------------\n" + HistoryTextBlock.Text;
+                    ActivityLogTextBlock.Text += logEntry + "\n------------------\n" + HistoryTextBlock.Text;
                 }
-                else if(status == 1)
+                else if (status == 1)
                 {
                     HistoryTextBlock.Text += logEntry + "\n------------------\n" + HistoryTextBlock.Text;
                 }
             });
         }
+
+        // ham doi mau button
+        private void SetActiveMenuButton(Button activeButton)
+        {
+            // Gradient khi được chọn
+            var gradient = new LinearGradientBrush();
+            gradient.StartPoint = new Point(0.5, 0);
+            gradient.EndPoint = new Point(0.5, 1);
+            gradient.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString("#FF667EEA"), 0));
+            gradient.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString("#FF764BA2"), 1));
+
+            // Reset tất cả về màu trắng
+            foreach (var btn in menuButtons)
+            {
+                btn.Background = new SolidColorBrush(Colors.White);
+            }
+
+            // Set màu cho button đang được click
+            activeButton.Background = gradient;
+        }
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Chọn button mặc định
+            SetActiveMenuButton(btnRequests);
+        }
+
     }
 }

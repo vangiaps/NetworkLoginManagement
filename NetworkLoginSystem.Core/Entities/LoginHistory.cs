@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 
 namespace NetworkLoginSystem.Core.Entities
 {
+    [Table("LoginHistories")]
     public class LoginHistory
     {
         [Key]

@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace NetworkLoginSystem.Core.DOTs
 {
+    /// <summary>
+    /// dùng để đóng gói dữ liệu và type của nó
+    /// </summary>
     public class DataPacket
     {
         public PacketType Type { get; set; } // Enum: LoginRequest, RegisterRequest

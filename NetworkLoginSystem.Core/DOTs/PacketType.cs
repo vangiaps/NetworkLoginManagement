@@ -9,14 +9,19 @@ namespace NetworkLoginSystem.Core.DOTs
     // Để sau này Server biết Client đang muốn làm gì
     public enum PacketType
     {
-        LoginRequest,
-        LoginResponse,
-        RegisterRequest,
-        RegisterResponse,
-        AcceptLogin,
-        NewLoginRequest,
+        LoginRequest, // yêu cầu đăng nhập
+        LoginResponse,// phản hồi đăng nhập
+        RegisterRequest,// y/c đăng kí
+        RegisterResponse,// phản hồi đăng kí
+        AcceptLogin,// chấp nhận đăng nhập
+        NewLoginRequest,// y/c đăng nhập mới
         AdminDecision,
-        AdminReconnection,
-        Message // Dành cho chat hoặc thông báo
+        AdminReconnection,// admin kết nối lại sau khi đăng nhập thành công
+        GetLoginHistory,    // y/c lấy ds lịch sử đăng nhập
+        LoginHistoryData, // đóng gói gửi cho admin 
+        GetClientList,      // Admin xin danh sách Client
+        ClientListData,     // Server trả danh sách
+        UpdateUserStatus,    // Admin yêu cầu Khóa/Mở khóa
+        DeleteUser // xóa tk
     }
 }

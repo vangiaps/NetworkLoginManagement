@@ -1,0 +1,6 @@
+{
+  "ServerSettings": {
+    "IpAddress": "localhost",
+    "Port": 9000
+  }
+}

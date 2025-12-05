@@ -5,6 +5,9 @@ using NetworkLoginSystem.Server;
 
 namespace NetworkLoginSystem
 {
+    /// <summary>
+    /// class để tạo cổng và những thứ cần để khởi tạo server
+    /// </summary>
     class Program
     {
         // Biến toàn cục lưu cấu hình
@@ -30,6 +33,7 @@ namespace NetworkLoginSystem
             Console.WriteLine("\nDang khoi dong TCP Socket...");
             string ip = Configuration["ServerSettings:IpAddress"];
             int tcpPort = Configuration.GetValue<int>("ServerSettings:Port");
+
             // Tạo Server và Chạy
             TcpServer server = new TcpServer(ip,tcpPort);
 

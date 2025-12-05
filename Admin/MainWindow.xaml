@@ -8,10 +8,10 @@
         <Border Background="White" CornerRadius="10" Margin="20" Padding="20">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="150"/>
+                    <RowDefinition Height="Auto" MinHeight="100.173"/>
+                    <RowDefinition Height="Auto" MinHeight="71.427"/>
+                    <RowDefinition/>
+                    <RowDefinition Height="114.44"/>
                 </Grid.RowDefinitions>
 
                 <!-- Header -->
@@ -28,59 +28,82 @@
                 </StackPanel>
 
                 <!-- Pending Count -->
-                <Border Grid.Row="1" Background="#E3F2FD" CornerRadius="5" Padding="15" Margin="0,0,0,15">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Total Pending Requests: " FontSize="16" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="TotalPendingTextBlock" Text="0" FontSize="20" FontWeight="Bold" 
- Foreground="#1976D2" VerticalAlignment="Center"/>
-                    </StackPanel>
+                <Border Background="#E3F2FD" CornerRadius="5" Padding="15" Margin="0,100,0,15" Grid.RowSpan="2">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition/>
+                            <!-- Bên trái tự co giãn -->
+                            <ColumnDefinition Width="Auto" MinWidth="120"/>
+                            <!-- Button 1 -->
+                            <ColumnDefinition Width="120"/>
+                            <ColumnDefinition Width="111"/>
+                            <!-- Button 2 -->
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Bên trái -->
+                        <StackPanel Orientation="Horizontal" Grid.Column="0">
+                            <TextBlock Text="Total Pending Requests: "
+                       FontSize="16" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TotalPendingTextBlock" Text="0"
+                       FontSize="20" FontWeight="Bold"
+                       Foreground="#1976D2" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- Button 1 -->
+                        <Button x:Name="btnRequests" Grid.Column="1" Content="Loin Requests"
+                Margin="0,-5,10,-5" FontWeight="Bold" Click="MenuRequests_Click">
+
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border CornerRadius="6" 
+                    Background="{TemplateBinding Background}">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
+                        <!-- Button 2 -->
+                        <Button x:Name="btnHistory" Grid.Column="2" Content="Login History"
+                Margin="10,-5,0,-5" FontWeight="Bold" Click="MenuHistory_Click">
+
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border CornerRadius="6" 
+                    Background="{TemplateBinding Background}">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+
+                        <!-- Button 3 -->
+                        <Button x:Name="btnClients" Grid.Column="3" Content="Account"
+Margin="10,-5,0,-5" FontWeight="Bold" Click="MenuClients_Click">
+
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border CornerRadius="6" 
+    Background="{TemplateBinding Background}">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                  VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
                 </Border>
 
                 <!-- Requests List -->
-                <Border Grid.Row="2" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="5">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl x:Name="LoginRequestsItemsControl">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="15" Background="White">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <StackPanel Grid.Column="0">
-                                                <TextBlock Text="{Binding Username}" FontSize="16" FontWeight="Bold"/>
-                                                <TextBlock FontSize="12" Foreground="Gray" Margin="0,5,0,0">
-  <Run Text="IP:"/>
-       <Run Text="{Binding IpAddress}"/>
-          <Run Text=" | Device:"/>
-     <Run Text="{Binding DeviceInfo}"/>
-                                                </TextBlock>
-                                                <TextBlock Text="{Binding RequestedAt, StringFormat='yyyy-MM-dd HH:mm:ss'}" 
-        FontSize="11" Foreground="Gray" Margin="0,3,0,0"/>
-                                            </StackPanel>
-
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                                
-                                                <Button Content="✓ Approve" Width="90" Height="35" Margin="0,0,10,0"
-     Background="#4CAF50" Foreground="White" BorderThickness="0"
-      Tag="{Binding}" Click="ApproveButton_Click"/>
-                                                <Button Content="✕ Reject" Width="90" Height="35"
-       Background="#F44336" Foreground="White" BorderThickness="0"
-        Tag="{Binding}" Click="RejectButton_Click"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                <Border Grid.Row="2" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="5" Margin="0,0,0,1">
+                    <ContentControl x:Name="MainContentArea" Margin="0,-1,0,0"/>
                 </Border>
 
                 <!-- Activity Log -->
                 <Border Grid.Row="3" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="1" 
-            CornerRadius="5" Padding="10" Margin="0,15,415,0">
+            CornerRadius="5" Padding="10" Margin="0,10,415,0">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -93,7 +116,7 @@
                     </Grid>
                 </Border>
                 <Border Grid.Row="3" Background="#F5F5F5" BorderBrush="#E0E0E0" BorderThickness="1" 
-            CornerRadius="5" Padding="10" Margin="415,15,0,0">
+            CornerRadius="5" Padding="10" Margin="415,10,0,0">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
